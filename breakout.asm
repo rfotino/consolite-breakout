@@ -52,7 +52,7 @@ init:                           ; Initializes the game
         DIV A B
         CALL change_direction
 
-        MOVI A 0x2              ; Initialize the ball's speed to 1.
+        MOVI A 0x2              ; Initialize the ball's speed to 2.
         STORI A ball_speed
 
         MOV SP FP
@@ -81,6 +81,7 @@ main:                           ; Main loop, called 60 times per second
         CALL init               ; Initialize the game state
 main_running:
         CALL move_ball
+        CALL collide_walls
 main_done:
         CALL draw_paddle
         CALL draw_ball
@@ -271,6 +272,52 @@ change_direction:
         POP L
         POP C
         POP B
+        POP FP
+        RET
+
+collide_walls:
+        PUSH FP
+        PUSH A
+        PUSH B
+        MOV FP SP
+
+        LOADI A ball_x          ; Check for collision with the left wall. If
+        MOVI B 0x1000           ; there is collision, reverse the x direction
+        CMP A B                 ; of the ball and set its position to the
+        JA collide_walls_right  ; minimum x position.
+        MOV A B
+        STORI A ball_x
+        LOADI A ball_dir_x
+        MOVI B 0x7fff
+        AND A B
+        STORI A ball_dir_x
+        JMPI collide_walls_top
+collide_walls_right:            ; Check for collision with the right wall.
+        MOVI B 0xec00
+        CMP A B
+        JB collide_walls_top
+        MOV A B
+        STORI A ball_x
+        LOADI A ball_dir_x
+        MOVI B 0x8000
+        OR A B
+        STORI A ball_dir_x
+collide_walls_top:
+        LOADI A ball_y          ; Check for collision with the top wall.
+        MOVI B 0x1000
+        CMP A B
+        JA collide_walls_done
+        MOV A B
+        STORI A ball_y
+        LOADI A ball_dir_y
+        MOVI B 0x7fff
+        AND A B
+        STORI A ball_dir_y
+collide_walls_done:
+
+        MOV SP FP
+        POP B
+        POP A
         POP FP
         RET
 
