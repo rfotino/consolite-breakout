@@ -1,5 +1,6 @@
 bootloader:
         MOVI SP stack           ; Initialize the stack pointer.
+        CALL draw_walls
         CALL init
         JMPI main               ; Start the main loop
 
@@ -25,18 +26,9 @@ init:                           ; Initializes the game
         PUSH A
         MOV FP SP
 
-        MOVI A 0x70
-        STORI A paddle_x
-        MOVI A 0x7e00
-        STORI A ball_x
-        MOVI A 0xb300
-        STORI A ball_y
-        MOVI A 0x0
+        MOVI A 0x0              ; Set the score to zero.
         STORI A score
-        STORI A is_running
-
-        CALL draw_walls
-        CALL draw_bricks
+        CALL draw_bricks        ; Draw all of the bricks.
 
         MOV SP FP
         POP A
@@ -51,11 +43,16 @@ main:                           ; Main loop, called 60 times per second
         STORI A ball_y_prev
         CALL move_paddle        ; Move the paddle according to input.
         LOADI A is_running      ; Check if the game is running, if so
-        LOADI B 0x1             ; do stuff like collision and scoring.
-        CMP A B
+        MOVI L 0x1              ; do stuff like collision and scoring.
+        CMP A L
         JEQ main_running
         CALL move_ball_with_paddle
-        JMPI main_done
+        MOVI A 0x0              ; Check if the user has hit the space
+        INPUT A A               ; bar, and if so begin the game.
+        CMP A L
+        JNE main_done
+        STORI L is_running      ; Set is_running true
+        CALL init               ; Initialize the game state
 main_running:
         ;; TODO: implement what happens when the game is running
 main_done:
