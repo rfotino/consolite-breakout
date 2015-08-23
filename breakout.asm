@@ -83,6 +83,7 @@ main_running:
         CALL move_ball
         CALL collide_walls
         CALL collide_paddle
+        CALL check_endgame
 main_done:
         CALL draw_paddle
         CALL draw_ball
@@ -242,6 +243,9 @@ move_ball_with_paddle:
         SHL A B                 ; it is in 8.8 fixed point.
         STORI A ball_x
 
+        MOVI A 0xb300           ; Set the ball y equal to the paddle y minus
+        STORI A ball_y          ; 5 (to be floating 1 pixel above the paddle).
+
         MOV SP FP
         POP B
         POP A
@@ -373,6 +377,26 @@ collide_paddle_done:
         POP E
         POP D
         POP C
+        POP B
+        POP A
+        POP FP
+        RET
+
+check_endgame:
+        PUSH FP
+        PUSH A
+        PUSH B
+        MOV FP SP
+
+        LOADI A ball_y
+        MOVI B 0xc000
+        CMP A B
+        JBE check_endgame_done
+        MOVI A 0x0
+        STORI A is_running
+
+check_endgame_done:
+        MOV SP FP
         POP B
         POP A
         POP FP
