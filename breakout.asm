@@ -82,6 +82,7 @@ main:                           ; Main loop, called 60 times per second
 main_running:
         CALL move_ball
         CALL collide_walls
+        CALL collide_paddle
 main_done:
         CALL draw_paddle
         CALL draw_ball
@@ -316,6 +317,62 @@ collide_walls_top:
 collide_walls_done:
 
         MOV SP FP
+        POP B
+        POP A
+        POP FP
+        RET
+
+collide_paddle:
+        PUSH FP
+        PUSH A
+        PUSH B
+        PUSH C
+        PUSH D
+        PUSH E
+        PUSH L
+        MOV FP SP
+
+        LOADI A paddle_x
+        LOADI B ball_x
+        LOADI C ball_y
+        LOADI D ball_y_prev
+        MOVI L 0x8              ; Turn the 8.8 position into an integer value
+        SHRL B L                ; by shifting it 8 to the right.
+        SHRL C L
+        SHRL D L
+
+        MOVI L 0x4              ; Check if the ball is to the left of the
+        MOV E B                 ; leftmost part of the paddle, meaning no
+        ADD E L                 ; collision.
+        CMP E A
+        JB collide_paddle_done
+        MOVI L 0x20             ; Check if the ball is to the right of the
+        MOV E A                 ; rightmost part of the paddle, meaning no
+        ADD E L                 ; collision.
+        CMP B E
+        JAE collide_paddle_done
+        MOVI E 0xb4             ; Check if the ball is above the paddle's
+        CMP C E                 ; surface, meaning no collision.
+        JB collide_paddle_done
+        CMP D E                 ; Check if the ball's previous position was
+        JAE collide_paddle_done ; below the paddle, meaning no collision.
+
+        MOVI L 0xb400           ; Set the ball's y position to the maximum
+        STORI L ball_y          ; and set it up with a new velocity.
+        SUB B A
+        MOVI L 0x4
+        ADD B L
+        MOVI L 0x2
+        SHRL B L
+        MOV A B
+        CALL change_direction
+
+collide_paddle_done:
+        MOV SP FP
+        POP L
+        POP E
+        POP D
+        POP C
         POP B
         POP A
         POP FP
