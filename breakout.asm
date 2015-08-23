@@ -6,14 +6,26 @@ bootloader:
 
 paddle_x:                       ; The (variable) x position of the paddle.
         0x0070
-ball_x:                         ; The x position of the ball in 8.8 fixed
-        0x7e00                  ; point.
+ball_x:                         ; The position of the ball is in 8.8 fixed point
+        0x7e00                  ; format.
 ball_x_prev:
         0x0000
-ball_y:                         ; The y position of the ball in 8.8 fixed
-        0xb300                  ; point.
+ball_y:
+        0xb300
 ball_y_prev:
         0x0000
+ball_speed:                     ; The ball's speed is multiplied by its
+        0x0000                  ; direction to get the velocity.
+ball_dir_x:                     ; The ball's direction is a unit vector in
+        0x0000                  ; 1.7.8 fixed point format.
+ball_dir_y:
+        0x0000
+                                ; Precalculated directions for -60 through 60
+                                ; degrees, at 15 degree intervals. Numbers in
+lookup_dir_x:                   ; 1.7.8 fixed point format.
+        0x80dd 0x80b5 0x8080 0x8042 0x0000 0x0042 0x0080 0x00b5 0x00dd
+lookup_dir_y:
+        0x8080 0x80b5 0x80dd 0x80f7 0x8100 0x80f7 0x80dd 0x80b5 0x8080
 score:                          ; The current score
         0x0000
 num_bitmaps:                    ; Bitmaps for drawing 0-9
@@ -24,13 +36,27 @@ is_running:                     ; If the game is currently running or
 init:                           ; Initializes the game
         PUSH FP
         PUSH A
+        PUSH B
         MOV FP SP
 
         MOVI A 0x0              ; Set the score to zero.
         STORI A score
         CALL draw_bricks        ; Draw all of the bricks.
 
+        RND A                   ; Get a random number between 0 and 8 to index
+        MOVI B 0xff             ; the directions lookup table to load
+        AND A B
+        MOVI B 0x9
+        MUL A B
+        MOVI B 0x100
+        DIV A B
+        CALL change_direction
+
+        MOVI A 0x2              ; Initialize the ball's speed to 1.
+        STORI A ball_speed
+
         MOV SP FP
+        POP B
         POP A
         POP FP
         RET
@@ -54,7 +80,7 @@ main:                           ; Main loop, called 60 times per second
         STORI L is_running      ; Set is_running true
         CALL init               ; Initialize the game state
 main_running:
-        ;; TODO: implement what happens when the game is running
+        CALL move_ball
 main_done:
         CALL draw_paddle
         CALL draw_ball
@@ -140,6 +166,67 @@ move_paddle_done:
         POP FP
         RET
 
+move_ball:
+        PUSH FP
+        PUSH A
+        PUSH B
+        PUSH C
+        PUSH D
+        PUSH E
+        PUSH L
+        PUSH M
+        PUSH N
+        MOV FP SP
+
+        LOADI A ball_dir_x
+        LOADI B ball_dir_y
+        LOADI C ball_speed
+        LOADI M ball_x
+        LOADI N ball_y
+
+        MOVI L 0xf              ; Get the leading bits for the direction, used
+        MOV D A                 ; to determine the sign. Shift the direction by
+        SHRL D L                ; 15 to get 0x1 for negative or 0x0 for positive
+        MOV E B
+        SHRL E L
+
+        MOVI L 0x7fff           ; Get rid of the sign bit from the direction
+        AND A L                 ; so that we can do math with it.
+        AND B L
+
+        MUL A C                 ; Multiply the speed by the direction to get
+        MUL B C                 ; the velocity to add to / sub from position.
+
+        MOVI L 0x1              ; Add or subtract the x and y velocities to or
+        CMP D L                 ; from the ball's position, to get its new
+        JEQ move_ball_x_neg     ; position.
+        ADD M A
+        JMPI move_ball_x_done
+move_ball_x_neg:
+        SUB M A
+move_ball_x_done:
+        CMP E L
+        JEQ move_ball_y_neg
+        ADD N B
+        JMPI move_ball_y_done
+move_ball_y_neg:
+        SUB N B
+move_ball_y_done:
+        STORI M ball_x
+        STORI N ball_y
+
+        MOV SP FP
+        POP N
+        POP M
+        POP L
+        POP E
+        POP D
+        POP C
+        POP B
+        POP A
+        POP FP
+        RET
+
 move_ball_with_paddle:
         PUSH FP
         PUSH A
@@ -156,6 +243,34 @@ move_ball_with_paddle:
         MOV SP FP
         POP B
         POP A
+        POP FP
+        RET
+
+change_direction:
+        PUSH FP
+        PUSH B
+        PUSH C
+        PUSH L
+        MOV FP SP
+
+        MOVI L 0x1
+        MOV C A
+        SHL C L
+
+        MOVI B lookup_dir_x
+        ADD B C
+        LOAD B B
+        STORI B ball_dir_x
+
+        MOVI B lookup_dir_y
+        ADD B C
+        LOAD B B
+        STORI B ball_dir_y
+
+        MOV SP FP
+        POP L
+        POP C
+        POP B
         POP FP
         RET
 
