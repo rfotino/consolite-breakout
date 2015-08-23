@@ -4,6 +4,12 @@ bootloader:
         CALL init
         JMPI main               ; Start the main loop
 
+bricks_blue:
+        0xffff
+bricks_orange:
+        0xffff
+bricks_green:
+        0xffff
 paddle_x:                       ; The (variable) x position of the paddle.
         0x0070
 ball_x:                         ; The position of the ball is in 8.8 fixed point
@@ -28,6 +34,8 @@ lookup_dir_y:
         0x8080 0x80b5 0x80dd 0x80f7 0x8100 0x80f7 0x80dd 0x80b5 0x8080
 score:                          ; The current score
         0x0000
+score_prev:                     ; The previous score
+        0x0000
 num_bitmaps:                    ; Bitmaps for drawing 0-9
         0x7b6f 0x2c97 0x73e7 0x72cf 0x5bc9 0x79cf 0x79ef 0x7249 0x7bef 0x7bcf
 is_running:                     ; If the game is currently running or
@@ -41,6 +49,10 @@ init:                           ; Initializes the game
 
         MOVI A 0x0              ; Set the score to zero.
         STORI A score
+        MOVI A 0xffff           ; Set the bricks to all alive.
+        STORI A bricks_blue
+        STORI A bricks_orange
+        STORI A bricks_green
         CALL draw_bricks        ; Draw all of the bricks.
 
         RND A                   ; Get a random number between 0 and 8 to index
@@ -67,6 +79,8 @@ main:                           ; Main loop, called 60 times per second
         STORI A ball_x_prev     ; to the current ball position.
         LOADI A ball_y
         STORI A ball_y_prev
+        LOADI A score           ; Set the previous score equal to the current
+        STORI A score_prev      ; score.
         CALL move_paddle        ; Move the paddle according to input.
         LOADI A is_running      ; Check if the game is running, if so
         MOVI L 0x1              ; do stuff like collision and scoring.
@@ -83,6 +97,7 @@ main_running:
         CALL move_ball
         CALL collide_walls
         CALL collide_paddle
+        CALL collide_bricks_all
         CALL check_endgame
 main_done:
         CALL draw_paddle
@@ -382,6 +397,258 @@ collide_paddle_done:
         POP FP
         RET
 
+collide_bricks_all:
+        PUSH FP
+        PUSH A
+        PUSH B
+        PUSH C
+        PUSH D
+        MOV FP SP
+
+        LOADI A bricks_blue
+        MOVI B 0x20             ; Starting y position.
+        MOVI C 0x64             ; Point value if collided, 100.
+        MOVI D 0x4              ; Min speed if collided.
+        CALL collide_bricks_line
+        STORI A bricks_blue
+
+        LOADI A bricks_orange
+        MOVI B 0x30             ; Starting y position.
+        MOVI C 0x32             ; Point value if collided, 50.
+        MOVI D 0x3              ; Min speed if collided.
+        CALL collide_bricks_line
+        STORI A bricks_orange
+
+        LOADI A bricks_green
+        MOVI B 0x40             ; Starting y position.
+        MOVI C 0x19             ; Point value if collided, 25.
+        MOVI D 0x2              ; Min speed if collided.
+        CALL collide_bricks_line
+        STORI A bricks_green
+
+        MOV SP FP
+        POP D
+        POP C
+        POP B
+        POP A
+        POP FP
+        RET
+
+collide_bricks_line:            ; A is brick vector, B is y position, C is point
+                                ; value of bricks, D is min speed if collided.
+        PUSH FP
+        PUSH E
+        PUSH F
+        PUSH G
+        PUSH H
+        PUSH L
+        PUSH M
+        PUSH N
+        MOV FP SP
+
+        MOVI E 0x10             ; Starting x position
+        MOVI F 0xf0             ; Maximum x position
+        MOV G B
+        MOVI L 0x10
+        ADD G L                 ; Maximum y position
+        MOVI H 0x8000           ; The bit we're testing for
+
+collide_bricks_line_next:
+        TST A H                 ; Check if the bit we're testing is set.
+        JEQ collide_bricks_line_inc ; If the bit is a zero, don't do collide.
+        MOV L A                 ; Save the value of A in L, and set up A to
+        MOV A E                 ; be the x position for calling collide_brick.
+        CALL collide_brick      ; This sets A to be 1 if there was a collision
+        MOV M A                 ; Set return value in M
+        MOV A L                 ; Restore A
+        MOVI N 0x1              ; Check if the return value was 1, if it wasn't
+        CMP M N                 ; then don't do anything.
+        JNE collide_bricks_line_inc
+        LOADI L score           ; Update the score
+        ADD L C
+        STORI L score
+        XOR A H                 ; Set the bit for this brick to 0.
+        LOADI L ball_speed      ; Increase the ball speed if it is not at the
+        CMP L D                 ; minimum.
+        JAE collide_bricks_line_inc
+        STORI D ball_speed
+collide_bricks_line_inc:
+        MOVI L 0x1              ; Shift the bit we're testing
+        SHRL H L
+        MOVI L 0x1c             ; Increment the x position, check if it's
+        ADD E L                 ; greater than the maximum.
+        CMP E F
+        JB collide_bricks_line_next
+        MOVI E 0x10
+        MOVI L 0x8
+        ADD B L
+        CMP B G
+        JB collide_bricks_line_next
+
+        MOV SP FP
+        POP N
+        POP M
+        POP L
+        POP H
+        POP G
+        POP F
+        POP E
+        POP FP
+        RET
+
+collide_brick:                  ; Check for collision with a single brick.
+                                ; A is the x position, B is the y position.
+                                ; If there is a collision, this function will
+                                ; handle updating the ball's position and
+                                ; direction and will black out the brick.
+        PUSH FP
+        PUSH C
+        PUSH D
+        PUSH E
+        PUSH F
+        PUSH G
+        PUSH H
+        PUSH I
+        PUSH L
+        PUSH N
+        MOV FP SP
+
+        MOVI N 0x0              ; Return value
+
+        MOVI C 0x1c             ; Brick width
+        MOVI D 0x8              ; Brick height
+
+        LOADI E ball_x          ; Get the ball x and y and shift them to their
+        LOADI F ball_y          ; integer values.
+        LOADI G ball_x_prev
+        LOADI H ball_y_prev
+        MOVI L 0x8
+        SHRL E L
+        SHRL F L
+        SHRL G L
+        SHRL H L
+
+        MOVI L 0x4              ; Check that ball_x + ball_width < brick_x,
+        MOV I E                 ; in which case there is no vertical collision.
+        ADD I L
+        CMP I A
+        JB collide_brick_vert_done
+        MOV I A                 ; Check that ball_x > brick_x + brick_width,
+        ADD I C                 ; in which case there is no vertical collision.
+        CMP E I
+        JA collide_brick_vert_done
+        MOV I F                 ; Check that ball_y + ball_height > brick_y,
+        ADD I L                 ; meaning no top collision
+        CMP I B
+        JB collide_brick_top_done
+        MOV I H                 ; Check ball_y_prev + ball_height < brick_y,
+        ADD I L                 ; meaning no top collision
+        CMP I B
+        JA collide_brick_top_done
+        MOV I B                 ; We had collision, set the ball in its correct
+        MOVI L 0x4              ; position.
+        SUB I L
+        MOVI L 0x8
+        SHL I L
+        STORI I ball_y
+        LOADI I ball_dir_y      ; Update the direction.
+        MOVI L 0x8000
+        OR I L
+        STORI I ball_dir_y
+        MOVI L 0x0              ; Black out the brick
+        COLOR L
+        CALL draw_rectangle
+        MOVI N 0x1              ; Set the return value
+        JMPI collide_brick_done
+collide_brick_top_done:
+        MOV I B                 ; Check that ball_y > brick_y + brick_height,
+        ADD I D                 ; meaning no collision.
+        CMP I F
+        JB collide_brick_vert_done
+        CMP I H                 ; Check ball_y_prev < brick_y + brick_height
+        JA collide_brick_vert_done
+        MOV I B                 ; We had collision, set the ball in its correct
+        ADD I D                 ; position.
+        MOVI L 0x8
+        SHL I L
+        STORI I ball_y
+        LOADI I ball_dir_y      ; Update the direction.
+        MOVI L 0x7fff
+        AND I L
+        STORI I ball_dir_y
+        MOVI L 0x0              ; Black out the brick
+        COLOR L
+        CALL draw_rectangle
+        MOVI N 0x1              ; Set the return value
+        JMPI collide_brick_done
+collide_brick_vert_done:
+        MOV I F                 ; Check that ball_y + ball_height < brick_y,
+        MOVI L 0x4              ; meaning no collision.
+        ADD I L
+        CMP I B
+        JB collide_brick_done
+        MOV I B                 ; Check that ball_y > brick_y + brick_height,
+        ADD I D                 ; meaning no collision.
+        CMP F I
+        JA collide_brick_done
+        MOV I G                 ; Check ball_x_prev + ball_width > brick_x,
+        ADD I L                 ; meaning no left collision.
+        CMP I A
+        JA collide_brick_left_done
+        MOV I E                 ; Check that ball_x + ball_width < brick_x,
+        ADD I L                 ; meaning no left collision.
+        CMP I A
+        JB collide_brick_left_done
+        MOV I A                 ; We had collision, set the ball in its correct
+        MOVI L 0x4              ; position.
+        SUB I L
+        MOVI L 0x8
+        SHL I L
+        STORI I ball_x
+        LOADI I ball_dir_x      ; Update the direction.
+        MOVI L 0x8000
+        OR I L
+        STORI I ball_dir_x
+        MOVI L 0x0              ; Black out the brick
+        COLOR L
+        CALL draw_rectangle
+        MOVI N 0x1              ; Set the return value
+        JMPI collide_brick_done
+collide_brick_left_done:
+        MOV I A                 ; Check ball_x_prev < brick_x + brick_width,
+        ADD I C                 ; meaning no collision.
+        CMP I G
+        JA collide_brick_done
+        CMP I E                 ; Check ball_x > brick_x + brick_width,
+        JB collide_brick_done   ; meaning no collision.
+        MOVI L 0x8              ; We had collision, set the ball in its correct
+        SHL I L                 ; position.
+        STORI I ball_x
+        LOADI I ball_dir_x      ; Update the direction.
+        MOVI L 0x7fff
+        AND I L
+        STORI I ball_dir_x
+        MOVI L 0x0              ; Black out the brick
+        COLOR L
+        CALL draw_rectangle
+        MOVI N 0x1              ; Set the return value
+        JMPI collide_brick_done
+collide_brick_done:
+        MOV A N                 ; We stored the return value in N temporarily,
+                                ; set it back to A.
+        MOV SP FP
+        POP N
+        POP L
+        POP I
+        POP H
+        POP G
+        POP F
+        POP E
+        POP D
+        POP C
+        POP FP
+        RET
+
 check_endgame:
         PUSH FP
         PUSH A
@@ -591,10 +858,22 @@ draw_score:
         PUSH N
         MOV FP SP
 
+        LOADI E score            ; Load the score and previous score.
+        LOADI F score_prev
+        CMP E F
+        JEQ draw_score_blank_done
+        MOVI L 0xff             ; If the current score is different than the
+        COLOR L                 ; previous score, first clear the score rect.
+        MOVI A 0x10
+        MOVI B 0x3
+        MOVI C 0x1e
+        MOVI D 0xa
+        CALL draw_rectangle
+draw_score_blank_done:
+
         MOVI L 0x0              ; Set the color to black
         COLOR L
 
-        LOADI E score           ; Load the score
         MOVI M 0x0              ; Counter for drawing digits
         MOVI N 0x4              ; Number of digits
         MOVI A 0x28             ; x position start
