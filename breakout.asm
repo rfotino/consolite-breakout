@@ -5,12 +5,12 @@ bootloader:
 
 paddle_x:                       ; The (variable) x position of the paddle.
         0x0070
-ball_x:                         ; The x position of the ball.
-        0x007e
-ball_y:                         ; The y position of the ball.
-        0x00b3
+ball_x:                         ; The x position of the ball in 8.8 fixed
+        0x7e00                  ; point.
+ball_y:                         ; The y position of the ball in 8.8 fixed
+        0xb300                  ; point.
 score:                          ; The current score
-        0x0100
+        0x0000
 num_bitmaps:                    ; Bitmaps for drawing 0-9
         0x7b6f 0x2c97 0x73e7 0x72cf 0x5bc9 0x79cf 0x79ef 0x7249 0x7bef 0x7bcf
 
@@ -161,6 +161,9 @@ draw_ball:
 
         LOADI A ball_x          ; Draw the ball at the x and y coords
         LOADI B ball_y          ; in memory.
+        MOVI C 0x8              ; The x and y coords are in 8.8 fixed
+        SHRL A C                ; point, so we have to shift them right
+        SHRL B C                ; to get the integer values.
         MOVI C 0x4
         MOVI D 0x4
         CALL draw_rectangle
@@ -200,6 +203,14 @@ draw_paddle:
         
 draw_score:
         PUSH FP
+        PUSH A
+        PUSH B
+        PUSH C
+        PUSH E
+        PUSH F
+        PUSH L
+        PUSH M
+        PUSH N
         MOV FP SP
 
         MOVI L 0x0              ; Set the color to black
@@ -228,6 +239,14 @@ draw_score_digit:
         JB draw_score_digit
 
         MOV SP FP
+        POP N
+        POP M
+        POP L
+        POP F
+        POP E
+        POP C
+        POP B
+        POP A
         POP FP
         RET
 
