@@ -7,25 +7,61 @@ paddle_x:                       ; The (variable) x position of the paddle.
         0x0070
 ball_x:                         ; The x position of the ball in 8.8 fixed
         0x7e00                  ; point.
+ball_x_prev:
+        0x0000
 ball_y:                         ; The y position of the ball in 8.8 fixed
         0xb300                  ; point.
+ball_y_prev:
+        0x0000
 score:                          ; The current score
         0x0000
 num_bitmaps:                    ; Bitmaps for drawing 0-9
         0x7b6f 0x2c97 0x73e7 0x72cf 0x5bc9 0x79cf 0x79ef 0x7249 0x7bef 0x7bcf
+is_running:                     ; If the game is currently running or
+        0x0000                  ; if it is waiting for input.
 
 init:                           ; Initializes the game
+        PUSH FP
+        PUSH A
+        MOV FP SP
+
+        MOVI A 0x70
+        STORI A paddle_x
+        MOVI A 0x7e00
+        STORI A ball_x
+        MOVI A 0xb300
+        STORI A ball_y
+        MOVI A 0x0
+        STORI A score
+        STORI A is_running
+
         CALL draw_walls
         CALL draw_bricks
+
+        MOV SP FP
+        POP A
+        POP FP
         RET
 
 main:                           ; Main loop, called 60 times per second
         TIMERST                 ; Resets the timer
-
-        CALL draw_ball
+        LOADI A ball_x          ; Set the previous ball position equal
+        STORI A ball_x_prev     ; to the current ball position.
+        LOADI A ball_y
+        STORI A ball_y_prev
+        CALL move_paddle        ; Move the paddle according to input.
+        LOADI A is_running      ; Check if the game is running, if so
+        LOADI B 0x1             ; do stuff like collision and scoring.
+        CMP A B
+        JEQ main_running
+        CALL move_ball_with_paddle
+        JMPI main_done
+main_running:
+        ;; TODO: implement what happens when the game is running
+main_done:
         CALL draw_paddle
+        CALL draw_ball
         CALL draw_score
-
         CALL wait               ; Wait until the 16ms for this iteration
         JMPI main               ; have elapsed, then restart.
 
@@ -41,6 +77,84 @@ wait_again:
         TIME B
         CMP B A
         JB wait_again
+
+        MOV SP FP
+        POP B
+        POP A
+        POP FP
+        RET
+
+move_paddle:                    ; Moves the paddle to the left or the
+        PUSH FP                 ; right or not at all depending on user
+        PUSH A                  ; input.
+        PUSH B
+        PUSH C
+        PUSH D
+        PUSH E
+        PUSH F
+        PUSH L
+        MOV FP SP
+
+        MOVI L 0x0              ; Set the color to black.
+        COLOR L
+
+        MOVI B 0xb8             ; The y coord of the paddle.
+        MOVI C 0x3              ; Speed at which the paddle moves
+        MOVI D 0x5              ; Height of the paddle
+
+        MOVI L 0x1
+        MOVI E 0x1
+        INPUT F E
+        CMP F L
+        JNE move_paddle_right
+move_paddle_left:
+        LOADI A paddle_x
+        MOVI L 0x10             ; Make sure the paddle x position is
+        CMP A L                 ; greater than the wall position.
+        JBE move_paddle_done
+        SUB A C
+        STORI A paddle_x
+        MOVI L 0x20
+        ADD A L
+        CALL draw_rectangle
+        JMPI move_paddle_done
+move_paddle_right:
+        MOVI E 0x2
+        INPUT F E
+        CMP F L
+        JNE move_paddle_done
+        LOADI A paddle_x
+        MOVI L 0xd0             ; Make sure the paddle x position is
+        CMP A L                 ; less than the wall position minus
+        JAE move_paddle_done    ; the paddle width.
+        ADD A C
+        STORI A paddle_x
+        SUB A C
+        CALL draw_rectangle
+move_paddle_done:
+        MOV SP FP
+        POP L
+        POP F
+        POP E
+        POP D
+        POP C
+        POP B
+        POP A
+        POP FP
+        RET
+
+move_ball_with_paddle:
+        PUSH FP
+        PUSH A
+        PUSH B
+        MOV FP SP
+
+        LOADI A paddle_x        ; Set the ball x equal to the paddle
+        MOVI B 0xe              ; x plus 14 (to center it).
+        ADD A B
+        MOVI B 0x8              ; Shift the ball x left by 8 because
+        SHL A B                 ; it is in 8.8 fixed point.
+        STORI A ball_x
 
         MOV SP FP
         POP B
@@ -154,21 +268,45 @@ draw_ball:
         PUSH B
         PUSH C
         PUSH D
+        PUSH L
         MOV FP SP
 
-        MOVI A 0xff             ; Set the color to white
-        COLOR A
-
-        LOADI A ball_x          ; Draw the ball at the x and y coords
-        LOADI B ball_y          ; in memory.
-        MOVI C 0x8              ; The x and y coords are in 8.8 fixed
-        SHRL A C                ; point, so we have to shift them right
-        SHRL B C                ; to get the integer values.
-        MOVI C 0x4
+        MOVI C 0x4              ; The width and height of the ball.
         MOVI D 0x4
+
+        LOADI A ball_x
+        LOADI B ball_x_prev
+        CMP A B
+        JNE draw_ball_black
+        LOADI A ball_y
+        LOADI B ball_y_prev
+        CMP A B
+        JNE draw_ball_black
+        JMPI draw_ball_white
+
+draw_ball_black:
+        MOVI L 0x0              ; Set the color to black
+        COLOR L
+        LOADI A ball_x_prev     ; Draw the ball at the prev x and y coords
+        LOADI B ball_y_prev     ; in memory.
+        MOVI L 0x8              ; The x and y coords are in 8.8 fixed
+        SHRL A L                ; point, so we have to shift them right
+        SHRL B L                ; to get the integer values.
         CALL draw_rectangle
 
+draw_ball_white:
+        MOVI L 0xff             ; Set the color to white
+        COLOR L
+        LOADI A ball_x          ; Draw teh ball at the current x and
+        LOADI B ball_y          ; y coords in memory.
+        MOVI L 0x8
+        SHRL A L
+        SHRL B L
+        CALL draw_rectangle
+
+draw_ball_done:
         MOV SP FP
+        POP L
         POP D
         POP C
         POP B
