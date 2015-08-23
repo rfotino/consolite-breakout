@@ -21,7 +21,8 @@ ball_y:
 ball_y_prev:
         0x0000
 ball_speed:                     ; The ball's speed is multiplied by its
-        0x0000                  ; direction to get the velocity.
+        0x0000                  ; direction to get the velocity. Speed is in
+                                ; 15.1 fixed point format.
 ball_dir_x:                     ; The ball's direction is a unit vector in
         0x0000                  ; 1.7.8 fixed point format.
 ball_dir_y:
@@ -64,7 +65,7 @@ init:                           ; Initializes the game
         DIV A B
         CALL change_direction
 
-        MOVI A 0x2              ; Initialize the ball's speed to 2.
+        MOVI A 0x4              ; Initialize the ball's speed to integer 2.
         STORI A ball_speed
 
         MOV SP FP
@@ -214,6 +215,9 @@ move_ball:
 
         MUL A C                 ; Multiply the speed by the direction to get
         MUL B C                 ; the velocity to add to / sub from position.
+        MOVI L 0x1              ; The velocity must be shifted right by one
+        SHRL A L                ; because the speed is in 15.1 fixed point
+        SHRL B L                ; format.
 
         MOVI L 0x1              ; Add or subtract the x and y velocities to or
         CMP D L                 ; from the ball's position, to get its new
@@ -408,21 +412,21 @@ collide_bricks_all:
         LOADI A bricks_blue
         MOVI B 0x20             ; Starting y position.
         MOVI C 0x64             ; Point value if collided, 100.
-        MOVI D 0x4              ; Min speed if collided.
+        MOVI D 0x7              ; Min speed if collided.
         CALL collide_bricks_line
         STORI A bricks_blue
 
         LOADI A bricks_orange
         MOVI B 0x30             ; Starting y position.
         MOVI C 0x32             ; Point value if collided, 50.
-        MOVI D 0x3              ; Min speed if collided.
+        MOVI D 0x5              ; Min speed if collided.
         CALL collide_bricks_line
         STORI A bricks_orange
 
         LOADI A bricks_green
         MOVI B 0x40             ; Starting y position.
         MOVI C 0x19             ; Point value if collided, 25.
-        MOVI D 0x2              ; Min speed if collided.
+        MOVI D 0x4              ; Min speed if collided.
         CALL collide_bricks_line
         STORI A bricks_green
 
