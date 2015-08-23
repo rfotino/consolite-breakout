@@ -660,7 +660,7 @@ check_endgame:
         MOV FP SP
 
         LOADI A ball_y
-        MOVI B 0xc000
+        MOVI B 0xf000
         CMP A B
         JBE check_endgame_done
         MOVI A 0x0
