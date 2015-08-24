@@ -1,9 +1,9 @@
 # Consolite Breakout
 
-The arcade game Breakout written in [Consolite Assembly Language](https://github.com/rfotino/consolite-asm-cpp/blob/master/docs/assembly.md).
+The arcade game Breakout written in [Consolite Assembly Language](https://github.com/rfotino/consolite-assembler/blob/master/docs/assembly.md).
 You can play the game by assembling it into a binary with the
-[Consolite Assembler](https://github.com/rfotino/consolite-asm-cpp)
-and running it with the [Consolite Emulator](https://github.com/rfotino/consolite-emu-cpp).
+[Consolite Assembler](https://github.com/rfotino/consolite-assembler)
+and running it with the [Consolite Emulator](https://github.com/rfotino/consolite-emulator).
 
 ## Gameplay
 
