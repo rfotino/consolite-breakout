@@ -101,8 +101,8 @@ main_running:
         CALL collide_bricks_all
         CALL check_endgame
 main_done:
-        CALL draw_paddle
         CALL draw_ball
+        CALL draw_paddle
         CALL draw_score
         CALL wait               ; Wait until the 16ms for this iteration
         JMPI main               ; have elapsed, then restart.
