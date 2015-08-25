@@ -1,3 +1,6 @@
+; Breakout in Consolite Assembly
+; Copyright (c) 2015 Robert Fotino, All Rights Reserved
+
 bootloader:
         MOVI SP stack           ; Initialize the stack pointer.
         CALL draw_walls
