@@ -22,3 +22,7 @@ and blue bricks are worth 100 points. The ball speeds up once you hit the
 first orange brick and then again once you hit the first blue brick. If
 you manage to get all of the bricks, none more will be generated but you
 will have achieved the maximum score of 2800 points.
+
+## Author
+
+Robert Fotino

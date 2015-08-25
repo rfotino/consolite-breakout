@@ -1,5 +1,5 @@
 ; Breakout in Consolite Assembly
-; Copyright (c) 2015 Robert Fotino, All Rights Reserved
+; Written by Robert Fotino
 
 bootloader:
         MOVI SP stack           ; Initialize the stack pointer.
