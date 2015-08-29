@@ -361,27 +361,29 @@ collide_paddle:
         LOADI A paddle_x
         LOADI B ball_x
         LOADI C ball_y
-        LOADI D ball_y_prev
+        LOADI D ball_x_prev
+        LOADI E ball_y_prev
         MOVI L 0x8              ; Turn the 8.8 position into an integer value
         SHRL B L                ; by shifting it 8 to the right.
         SHRL C L
         SHRL D L
+        SHRL E L
 
         MOVI L 0x4              ; Check if the ball is to the left of the
-        MOV E B                 ; leftmost part of the paddle, meaning no
-        ADD E L                 ; collision.
-        CMP E A
-        JB collide_paddle_done
+        MOV F B                 ; leftmost part of the paddle, meaning no
+        ADD F L                 ; collision.
+        CMP F A
+        JB collide_paddle_left
         MOVI L 0x20             ; Check if the ball is to the right of the
-        MOV E A                 ; rightmost part of the paddle, meaning no
-        ADD E L                 ; collision.
-        CMP B E
-        JAE collide_paddle_done
-        MOVI E 0xb4             ; Check if the ball is above the paddle's
-        CMP C E                 ; surface, meaning no collision.
-        JB collide_paddle_done
-        CMP D E                 ; Check if the ball's previous position was
-        JAE collide_paddle_done ; below the paddle, meaning no collision.
+        MOV F A                 ; rightmost part of the paddle, meaning no
+        ADD F L                 ; collision.
+        CMP B F
+        JAE collide_paddle_left
+        MOVI F 0xb4             ; Check if the ball is above the paddle's
+        CMP C F                 ; surface, meaning no collision.
+        JB collide_paddle_left
+        CMP E F                 ; Check if the ball's previous position was
+        JAE collide_paddle_left ; below the paddle, meaning no collision.
 
         MOVI L 0xb400           ; Set the ball's y position to the maximum
         STORI L ball_y          ; and set it up with a new velocity.
@@ -392,6 +394,50 @@ collide_paddle:
         SHRL B L
         MOV A B
         CALL change_direction
+        JMPI collide_paddle_done
+
+collide_paddle_left:            ; Now we check for horizontal collision
+        MOVI L 0xb4             ; Check that ball_y + ball_height < paddle_y,
+        CMP C L                 ; meaning no collision.
+        JB collide_paddle_done
+        MOVI L 0xbd             ; Check that ball_y > paddle_y + paddle_height,
+        CMP C L                 ; meaning no collision.
+        JA collide_paddle_done
+        MOVI L 0x4
+        MOV F D                 ; Check ball_x_prev + ball_width > paddle_x,
+        ADD F L                 ; meaning no left collision.
+        CMP F A
+        JA collide_paddle_right
+        MOV F B                 ; Check that ball_x + ball_width < paddle_x,
+        ADD F L                 ; meaning no left collision.
+        CMP F A
+        JB collide_paddle_right
+        MOV F A                 ; We had collision, set the ball in its correct
+        MOVI L 0x4              ; position.
+        SUB F L
+        MOVI L 0x8
+        SHL F L
+        STORI F ball_x
+        LOADI F ball_dir_x      ; Update the direction.
+        MOVI L 0x8000
+        OR F L
+        STORI F ball_dir_x
+        JMPI collide_paddle_done
+collide_paddle_right:
+        MOVI L 0x20
+        MOV F A                 ; Check ball_x_prev < paddle_x + paddle_width,
+        ADD F L                 ; meaning no collision.
+        CMP F D
+        JA collide_paddle_done
+        CMP F B                 ; Check ball_x > brick_x + brick_width,
+        JB collide_paddle_done   ; meaning no collision.
+        MOVI L 0x8              ; We had collision, set the ball in its correct
+        SHL F L                 ; position.
+        STORI F ball_x
+        LOADI F ball_dir_x      ; Update the direction.
+        MOVI L 0x7fff
+        AND F L
+        STORI F ball_dir_x
 
 collide_paddle_done:
         MOV SP FP
